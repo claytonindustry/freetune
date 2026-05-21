@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Piano Tuner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Mono:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0c0a;
+    --surface: #1a1714;
+    --surface2: #252119;
+    --gold: #c8a84b;
+    --gold2: #e8c97a;
+    --ivory: #f5f0e8;
+    --dim: #6b6355;
+    --red: #c04040;
+    --green: #4a9b6f;
+    --blue: #4a7ab5;
+    --orange: #c87c30;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ivory);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(200,168,75,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(74,123,181,0.04) 0%, transparent 60%);
+  }
+
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.8rem, 5vw, 2.8rem);
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    line-height: 1;
+  }
+  header p { color: var(--dim); font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 6px; }
+
+  /* Mode tabs */
+  .mode-tabs {
+    display: flex;
+    width: 100%;
+    max-width: 540px;
+    margin-bottom: 20px;
+    background: var(--surface);
+    border: 1px solid #2e2a22;
+    border-radius: 10px;
+    padding: 4px;
+    gap: 4px;
+  }
+  .mode-tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    color: var(--dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 9px 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .mode-tab.active {
+    background: var(--gold);
+    color: #0e0c0a;
+    font-weight: 500;
+  }
+  .mode-tab:hover:not(.active) { color: var(--gold); }
+
+  .controls-row {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    justify-content: center; margin-bottom: 20px;
+  }
+  .control-group {
+    background: var(--surface); border: 1px solid #2e2a22;
+    border-radius: 8px; padding: 10px 16px;
+    display: flex; flex-direction: column; gap: 6px; min-width: 140px;
+  }
+  .control-group label { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--dim); }
+  .seg-control { display: flex; gap: 4px; }
+  .seg-btn {
+    flex: 1; background: transparent; border: 1px solid #3a3530;
+    color: var(--dim); font-family: 'DM Mono', monospace; font-size: 0.75rem;
+    padding: 5px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .seg-btn.active { background: var(--gold); border-color: var(--gold); color: #0e0c0a; font-weight: 500; }
+  .seg-btn:hover:not(.active) { border-color: var(--gold); color: var(--gold); }
+
+  /* Panel */
+  .panel {
+    width: 100%; max-width: 540px;
+    background: var(--surface); border: 1px solid #2e2a22;
+    border-radius: 16px; padding: 24px 20px 20px;
+    margin-bottom: 16px; position: relative; overflow: hidden;
+  }
+  .panel::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent); opacity: 0.4;
+  }
+  .panel.beat-panel::before {
+    background: linear-gradient(90deg, transparent, var(--orange), transparent);
+  }
+
+  .panel-title {
+    font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--dim); margin-bottom: 16px;
+  }
+
+  /* Note display */
+  .note-display { text-align: center; margin-bottom: 20px; }
+  .note-name {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(3.5rem, 12vw, 5rem);
+    color: var(--ivory); line-height: 1; transition: color 0.2s;
+  }
+  .note-name.in-tune { color: var(--green); }
+  .note-name.sharp { color: var(--red); }
+  .note-name.flat { color: var(--blue); }
+  .note-freq { font-size: 0.78rem; color: var(--dim); margin-top: 4px; letter-spacing: 0.06em; }
+  .note-freq span { color: var(--gold2); font-weight: 500; }
+
+  /* Cents meter */
+  .meter-wrap { margin-bottom: 16px; }
+  .meter-label-row {
+    display: flex; justify-content: space-between;
+    font-size: 0.62rem; color: var(--dim); letter-spacing: 0.08em; margin-bottom: 6px;
+  }
+  .meter-track {
+    position: relative; height: 30px; background: #141210;
+    border-radius: 15px; border: 1px solid #2e2a22; overflow: hidden;
+  }
+  .meter-track::before {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 2px; height: 60%; transform: translate(-50%, -50%);
+    background: var(--gold); z-index: 2; border-radius: 1px;
+  }
+  .meter-fill {
+    position: absolute; top: 0; height: 100%;
+    transition: left 0.08s ease, width 0.08s ease, background 0.15s; border-radius: 15px;
+  }
+  .meter-needle {
+    position: absolute; top: 50%; width: 4px; height: 80%;
+    background: var(--ivory); border-radius: 2px;
+    transform: translate(-50%, -50%); transition: left 0.08s ease, background 0.15s; z-index: 3;
+  }
+  .cents-value {
+    text-align: center; font-size: 1.3rem; font-weight: 500;
+    margin-top: 8px; letter-spacing: 0.05em; transition: color 0.2s; min-height: 1.7rem;
+  }
+  .cents-value.in-tune { color: var(--green); }
+  .cents-value.sharp { color: var(--red); }
+  .cents-value.flat { color: var(--blue); }
+
+  .target-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface2); border-radius: 8px; padding: 9px 12px; font-size: 0.72rem;
+  }
+  .target-label { color: var(--dim); }
+  .target-value { color: var(--gold2); font-weight: 500; }
+
+  /* ── Beat section ─────────────────────────────────────────────── */
+  .beat-big {
+    text-align: center; margin-bottom: 16px;
+  }
+  .beat-hz {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(3rem, 10vw, 4.5rem);
+    line-height: 1; transition: color 0.3s;
+  }
+  .beat-hz.pure { color: var(--green); }
+  .beat-hz.slow { color: var(--gold); }
+  .beat-hz.fast { color: var(--orange); }
+  .beat-hz.very-fast { color: var(--red); }
+
+  .beat-unit { font-size: 0.9rem; color: var(--dim); margin-top: 2px; }
+
+  .beat-quality {
+    display: inline-block;
+    font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase;
+    padding: 4px 12px; border-radius: 20px; margin-top: 6px;
+    background: var(--surface2); color: var(--dim);
+    transition: all 0.3s;
+  }
+  .beat-quality.pure { background: rgba(74,155,111,0.15); color: var(--green); }
+  .beat-quality.slow { background: rgba(200,168,75,0.15); color: var(--gold); }
+  .beat-quality.fast { background: rgba(200,124,48,0.15); color: var(--orange); }
+  .beat-quality.very-fast { background: rgba(192,64,64,0.15); color: var(--red); }
+
+  /* Beat rate bar */
+  .beat-bar-wrap { margin-bottom: 16px; }
+  .beat-bar-label-row {
+    display: flex; justify-content: space-between;
+    font-size: 0.62rem; color: var(--dim); margin-bottom: 6px; letter-spacing: 0.08em;
+  }
+  .beat-bar-track {
+    height: 18px; background: #141210; border-radius: 9px;
+    border: 1px solid #2e2a22; overflow: hidden; position: relative;
+  }
+  .beat-bar-fill {
+    height: 100%; border-radius: 9px; width: 0%;
+    transition: width 0.15s ease, background 0.3s;
+    background: var(--green);
+  }
+
+  /* Waveform canvas */
+  .waveform-wrap { margin-bottom: 12px; }
+  .waveform-label {
+    font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--dim); margin-bottom: 6px;
+  }
+  canvas#beatCanvas {
+    width: 100%; height: 80px;
+    background: #0e0c0a; border-radius: 8px;
+    border: 1px solid #2e2a22; display: block;
+  }
+
+  /* Beat period indicator */
+  .beat-period-row {
+    display: flex; gap: 10px; align-items: center;
+    background: var(--surface2); border-radius: 8px; padding: 9px 12px;
+    font-size: 0.72rem;
+  }
+  .beat-period-label { color: var(--dim); flex: 1; }
+  .beat-period-val { color: var(--gold2); font-weight: 500; }
+
+  /* Signal row */
+  .signal-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .signal-label { font-size: 0.62rem; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; width: 52px; }
+  .signal-bars { display: flex; gap: 3px; align-items: flex-end; height: 18px; }
+  .signal-bar { width: 5px; background: #2e2a22; border-radius: 2px; transition: background 0.1s; }
+
+  /* Mic button */
+  .mic-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; max-width: 540px; padding: 15px;
+    background: var(--gold); color: #0e0c0a; border: none; border-radius: 12px;
+    font-family: 'DM Mono', monospace; font-size: 0.88rem; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; margin-bottom: 16px;
+  }
+  .mic-btn:hover { background: var(--gold2); }
+  .mic-btn.listening {
+    background: var(--red); color: #fff;
+    animation: pulse-btn 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse-btn {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(192,64,64,0.4); }
+    50% { box-shadow: 0 0 0 10px rgba(192,64,64,0); }
+  }
+  .mic-dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .listening .mic-dot { animation: blink 0.8s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* Keyboard */
+  .keyboard-section {
+    width: 100%; max-width: 540px; background: var(--surface);
+    border: 1px solid #2e2a22; border-radius: 16px; padding: 18px; margin-bottom: 16px;
+  }
+  .keyboard-section h3 {
+    font-size: 0.65rem; color: var(--dim); letter-spacing: 0.15em;
+    text-transform: uppercase; margin-bottom: 12px;
+  }
+  .octave-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .octave-label { font-size: 0.62rem; color: var(--dim); width: 26px; flex-shrink: 0; }
+  .key-grid { display: flex; gap: 3px; flex-wrap: wrap; }
+  .key-btn {
+    background: var(--surface2); border: 1px solid #333; border-radius: 4px;
+    color: var(--ivory); font-family: 'DM Mono', monospace; font-size: 0.62rem;
+    padding: 5px 5px; cursor: pointer; transition: all 0.12s; white-space: nowrap;
+    min-width: 33px; text-align: center;
+  }
+  .key-btn.black-key { background: #111; color: var(--dim); border-color: #2a2a2a; }
+  .key-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .key-btn.active { background: var(--gold); border-color: var(--gold); color: #0e0c0a; font-weight: 500; }
+
+  /* Ref tone */
+  .ref-section {
+    width: 100%; max-width: 540px; background: var(--surface);
+    border: 1px solid #2e2a22; border-radius: 16px; padding: 18px;
+  }
+  .ref-section h3 { font-size: 0.65rem; color: var(--dim); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; }
+  .ref-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .ref-play-btn {
+    background: var(--surface2); border: 1px solid #3a3530; border-radius: 8px;
+    color: var(--gold); font-family: 'DM Mono', monospace; font-size: 0.78rem;
+    padding: 9px 16px; cursor: pointer; transition: all 0.15s; letter-spacing: 0.06em;
+  }
+  .ref-play-btn:hover { background: var(--gold); border-color: var(--gold); color: #0e0c0a; }
+  .ref-play-btn.playing { background: var(--green); border-color: var(--green); color: #0e0c0a; }
+
+  .status-msg {
+    text-align: center; font-size: 0.7rem; color: var(--dim);
+    letter-spacing: 0.06em; margin-top: 12px; min-height: 1.2em;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Piano Tuner</h1>
+  <p>Chromatic · Unison · Precision</p>
+</header>
+
+<!-- Mode tabs -->
+<div class="mode-tabs">
+  <button class="mode-tab active" onclick="setMode('pitch', this)">Pitch / Cents</button>
+  <button class="mode-tab" onclick="setMode('unison', this)">Unison Beats</button>
+</div>
+
+<!-- Settings -->
+<div class="controls-row">
+  <div class="control-group">
+    <label>Reference Pitch</label>
+    <div class="seg-control">
+      <button class="seg-btn active" data-ref="440" onclick="setRef(this)">A 440</button>
+      <button class="seg-btn" data-ref="432" onclick="setRef(this)">A 432</button>
+    </div>
+  </div>
+  <div class="control-group">
+    <label>Temperament</label>
+    <div class="seg-control">
+      <button class="seg-btn active" data-temp="equal" onclick="setTemp(this)">Equal</button>
+      <button class="seg-btn" data-temp="well" onclick="setTemp(this)">Well</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PITCH PANEL ───────────────────────────────────────────────── -->
+<div class="panel" id="pitchPanel">
+  <div class="signal-row">
+    <span class="signal-label">Signal</span>
+    <div class="signal-bars" id="signalBars">
+      <div class="signal-bar" style="height:4px"></div>
+      <div class="signal-bar" style="height:7px"></div>
+      <div class="signal-bar" style="height:11px"></div>
+      <div class="signal-bar" style="height:15px"></div>
+      <div class="signal-bar" style="height:18px"></div>
+      <div class="signal-bar" style="height:15px"></div>
+      <div class="signal-bar" style="height:11px"></div>
+      <div class="signal-bar" style="height:7px"></div>
+      <div class="signal-bar" style="height:4px"></div>
+    </div>
+  </div>
+
+  <div class="note-display">
+    <div class="note-name" id="noteName">—</div>
+    <div class="note-freq" id="noteFreq">detected: <span id="detectedHz">—</span> Hz &nbsp;|&nbsp; target: <span id="targetHz">—</span> Hz</div>
+  </div>
+
+  <div class="meter-wrap">
+    <div class="meter-label-row">
+      <span>♭ FLAT</span><span>CENTS</span><span>SHARP ♯</span>
+    </div>
+    <div class="meter-track" id="meterTrack">
+      <div class="meter-fill" id="meterFill" style="display:none"></div>
+      <div class="meter-needle" id="meterNeedle" style="left:50%"></div>
+    </div>
+    <div class="cents-value" id="centsValue">— ¢</div>
+  </div>
+
+  <div class="target-row">
+    <span class="target-label">Target</span>
+    <span class="target-value" id="listeningFor">Select a note below</span>
+  </div>
+</div>
+
+<!-- ── UNISON BEAT PANEL ─────────────────────────────────────────── -->
+<div class="panel beat-panel hidden" id="beatPanel">
+  <div class="signal-row">
+    <span class="signal-label">Signal</span>
+    <div class="signal-bars" id="signalBars2">
+      <div class="signal-bar" style="height:4px"></div>
+      <div class="signal-bar" style="height:7px"></div>
+      <div class="signal-bar" style="height:11px"></div>
+      <div class="signal-bar" style="height:15px"></div>
+      <div class="signal-bar" style="height:18px"></div>
+      <div class="signal-bar" style="height:15px"></div>
+      <div class="signal-bar" style="height:11px"></div>
+      <div class="signal-bar" style="height:7px"></div>
+      <div class="signal-bar" style="height:4px"></div>
+    </div>
+  </div>
+
+  <div class="beat-big">
+    <div class="beat-hz pure" id="beatHz">—</div>
+    <div class="beat-unit">beats per second</div>
+    <div class="beat-quality" id="beatQuality">Waiting for signal</div>
+  </div>
+
+  <!-- Rate bar 0–10 Hz -->
+  <div class="beat-bar-wrap">
+    <div class="beat-bar-label-row">
+      <span>Pure (0 Hz)</span><span>Beat Rate</span><span>Fast (10+ Hz)</span>
+    </div>
+    <div class="beat-bar-track">
+      <div class="beat-bar-fill" id="beatBarFill"></div>
+    </div>
+  </div>
+
+  <!-- Scrolling waveform -->
+  <div class="waveform-wrap">
+    <div class="waveform-label">Amplitude envelope — beat waveform</div>
+    <canvas id="beatCanvas" height="80"></canvas>
+  </div>
+
+  <div class="beat-period-row">
+    <span class="beat-period-label">Beat period</span>
+    <span class="beat-period-val" id="beatPeriod">—</span>
+    <span class="beat-period-label" style="text-align:right">Note</span>
+    <span class="beat-period-val" id="beatNote">—</span>
+  </div>
+</div>
+
+<!-- Mic button -->
+<button class="mic-btn" id="micBtn" onclick="toggleMic()">
+  <span class="mic-dot"></span>
+  <span id="micBtnText">Start Listening</span>
+</button>
+
+<!-- Keyboard -->
+<div class="keyboard-section">
+  <h3>Target Note</h3>
+  <div id="keyboardOctaves"></div>
+</div>
+
+<!-- Reference tone -->
+<div class="ref-section">
+  <h3>Reference Tone Generator</h3>
+  <div class="ref-controls">
+    <button class="ref-play-btn" id="refPlayBtn" onclick="toggleRefTone()">▶ Play Reference Tone</button>
+    <span style="font-size:0.72rem; color:var(--dim);" id="refFreqDisplay"></span>
+  </div>
+  <div class="status-msg" id="statusMsg">Select a note, then press mic to begin.</div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────
+let refA = 440, temperament = 'equal', mode = 'pitch';
+let audioCtx = null, analyser = null, micStream = null, animFrame = null;
+let listening = false;
+let selectedNote = { name: 'A', octave: 4, midi: 69 };
+let refOscillator = null, refGain = null, refPlaying = false;
+
+// Beat detection state
+let envelopeHistory = [];       // raw amplitude envelope samples
+let beatWaveform = [];          // downsampled for canvas
+const ENVELOPE_SR = 100;        // ~100 envelope samples/sec
+let lastEnvTime = 0;
+let beatCanvasCtx = null;
+const WAVEFORM_LEN = 300;       // canvas scroll buffer
+
+// Smoothing
+let freqHistory = [];
+let beatRateHistory = [];
+
+// ── Temperament ────────────────────────────────────────────────────
+const WELL_OFFSETS = {
+  C:0,'C#':-5.87,D:-1.96,'D#':3.91,E:-3.91,
+  F:1.96,'F#':-7.82,G:-0.98,'G#':-5.87,A:0,'A#':1.96,B:-1.96
+};
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const BLACK_KEYS = new Set([1,3,6,8,10]);
+
+function midiToFreq(midi) {
+  const base = refA * Math.pow(2, (midi - 69) / 12);
+  if (temperament === 'well') {
+    const off = WELL_OFFSETS[NOTE_NAMES[midi % 12]] || 0;
+    return base * Math.pow(2, off / 1200);
+  }
+  return base;
+}
+function freqToMidi(freq) { return 12 * Math.log2(freq / refA) + 69; }
+function centsOff(det, tgt) { return 1200 * Math.log2(det / tgt); }
+
+// ── Mode switching ─────────────────────────────────────────────────
+function setMode(m, btn) {
+  mode = m;
+  document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('pitchPanel').classList.toggle('hidden', m !== 'pitch');
+  document.getElementById('beatPanel').classList.toggle('hidden', m !== 'unison');
+  envelopeHistory = [];
+  beatWaveform = new Array(WAVEFORM_LEN).fill(0);
+  beatRateHistory = [];
+  if (m === 'unison') initBeatCanvas();
+}
+
+// ── Canvas init ────────────────────────────────────────────────────
+function initBeatCanvas() {
+  const canvas = document.getElementById('beatCanvas');
+  canvas.width = canvas.offsetWidth || 500;
+  canvas.height = 80;
+  beatCanvasCtx = canvas.getContext('2d');
+  beatWaveform = new Array(WAVEFORM_LEN).fill(0);
+  drawBeatWaveform(0);
+}
+
+function drawBeatWaveform(beatHz) {
+  const canvas = document.getElementById('beatCanvas');
+  if (!canvas || !beatCanvasCtx) return;
+  const W = canvas.width, H = canvas.height;
+  const ctx = beatCanvasCtx;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#0e0c0a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Center line
+  ctx.strokeStyle = '#2e2a22';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+
+  // Color based on beat rate
+  let color;
+  if (beatHz < 0.3) color = '#4a9b6f';
+  else if (beatHz < 2) color = '#c8a84b';
+  else if (beatHz < 6) color = '#c87c30';
+  else color = '#c04040';
+
+  // Draw waveform
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 4;
+  ctx.beginPath();
+  const step = W / WAVEFORM_LEN;
+  beatWaveform.forEach((v, i) => {
+    const x = i * step;
+    const y = H/2 - v * (H * 0.42);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ── Beat extraction from envelope ─────────────────────────────────
+// We track the amplitude envelope, low-pass it, and find zero-crossings
+// of its derivative to get beat periodicity.
+
+function extractBeatRate(envelope) {
+  if (envelope.length < ENVELOPE_SR * 1.5) return -1; // need at least 1.5s
+
+  // Work with last 4 seconds
+  const win = envelope.slice(-ENVELOPE_SR * 4);
+
+  // Low-pass smooth (moving average)
+  const sm = [];
+  const k = 8;
+  for (let i = 0; i < win.length; i++) {
+    let s = 0, n = 0;
+    for (let j = Math.max(0, i-k); j <= Math.min(win.length-1, i+k); j++) { s += win[j]; n++; }
+    sm.push(s / n);
+  }
+
+  // Normalize
+  const mn = Math.min(...sm), mx = Math.max(...sm);
+  const rng = mx - mn;
+  if (rng < 0.015) return 0; // no beating — pure unison
+
+  const norm = sm.map(v => (v - mn) / rng);
+
+  // Find peaks (local maxima above 0.6)
+  const peaks = [];
+  for (let i = 2; i < norm.length - 2; i++) {
+    if (norm[i] > 0.6 && norm[i] > norm[i-1] && norm[i] > norm[i+1]
+        && norm[i] > norm[i-2] && norm[i] > norm[i+2]) {
+      peaks.push(i);
+    }
+  }
+
+  if (peaks.length < 2) return -1;
+
+  // Average inter-peak interval → beat period
+  const intervals = [];
+  for (let i = 1; i < peaks.length; i++) {
+    intervals.push((peaks[i] - peaks[i-1]) / ENVELOPE_SR);
+  }
+  const avgPeriod = intervals.reduce((a,b) => a+b, 0) / intervals.length;
+  return avgPeriod > 0 ? 1 / avgPeriod : -1;
+}
+
+function smoothBeatRate(r) {
+  if (r < 0) return -1;
+  beatRateHistory.push(r);
+  if (beatRateHistory.length > 6) beatRateHistory.shift();
+  const s = [...beatRateHistory].sort((a,b)=>a-b);
+  return s[Math.floor(s.length/2)];
+}
+
+function updateBeatDisplay(beatHz, hasSignal) {
+  const hzEl = document.getElementById('beatHz');
+  const qualEl = document.getElementById('beatQuality');
+  const barFill = document.getElementById('beatBarFill');
+  const periodEl = document.getElementById('beatPeriod');
+  const noteEl = document.getElementById('beatNote');
+
+  if (!hasSignal || beatHz < 0) {
+    hzEl.textContent = '—';
+    hzEl.className = 'beat-hz';
+    qualEl.textContent = 'Waiting for signal';
+    qualEl.className = 'beat-quality';
+    barFill.style.width = '0%';
+    periodEl.textContent = '—';
+    return;
+  }
+
+  let cls, label;
+  if (beatHz === 0 || beatHz < 0.3) {
+    cls = 'pure'; label = 'Pure unison';
+  } else if (beatHz < 1.5) {
+    cls = 'slow'; label = 'Slow beating — nearly there';
+  } else if (beatHz < 5) {
+    cls = 'fast'; label = 'Beating — needs adjustment';
+  } else {
+    cls = 'very-fast'; label = 'Fast beating — far out of tune';
+  }
+
+  hzEl.textContent = beatHz < 0.3 ? '0.0' : beatHz.toFixed(2);
+  hzEl.className = 'beat-hz ' + cls;
+  qualEl.textContent = label;
+  qualEl.className = 'beat-quality ' + cls;
+
+  const pct = Math.min(100, (beatHz / 10) * 100);
+  barFill.style.width = pct + '%';
+  const barColor = cls === 'pure' ? 'var(--green)' : cls === 'slow' ? 'var(--gold)' : cls === 'fast' ? 'var(--orange)' : 'var(--red)';
+  barFill.style.background = barColor;
+
+  if (beatHz >= 0.3) {
+    const period = 1 / beatHz;
+    periodEl.textContent = period.toFixed(2) + ' s';
+  } else {
+    periodEl.textContent = '∞ (pure)';
+  }
+
+  const { name, octave } = selectedNote;
+  noteEl.textContent = name + octave;
+}
+
+// ── Pitch detection ────────────────────────────────────────────────
+function autoCorrelate(buf, sr) {
+  const SIZE = buf.length;
+  let rms = 0;
+  for (let i = 0; i < SIZE; i++) rms += buf[i]*buf[i];
+  rms = Math.sqrt(rms/SIZE);
+  if (rms < 0.008) return -1;
+
+  let r1=0, r2=SIZE-1;
+  const thres=0.2;
+  for(let i=0;i<SIZE/2;i++) if(Math.abs(buf[i])<thres){r1=i;break;}
+  for(let i=1;i<SIZE/2;i++) if(Math.abs(buf[SIZE-i])<thres){r2=SIZE-i;break;}
+  const sl=buf.slice(r1,r2), len=sl.length;
+  const c=new Float32Array(len).fill(0);
+  for(let i=0;i<len;i++) for(let j=0;j<len-i;j++) c[i]+=sl[j]*sl[j+i];
+  let d=0;
+  while(d<len&&c[d]>c[d+1])d++;
+  let maxval=-1,maxpos=-1;
+  for(let i=d;i<len;i++) if(c[i]>maxval){maxval=c[i];maxpos=i;}
+  if(maxpos<1||maxpos>=len-1)return -1;
+  let T0=maxpos;
+  const x1=c[T0-1],x2=c[T0],x3=c[T0+1];
+  const a=(x1+x3-2*x2)/2,b=(x3-x1)/2;
+  if(a)T0=T0-b/(2*a);
+  return sr/T0;
+}
+
+function smoothFreq(f) {
+  freqHistory.push(f);
+  if(freqHistory.length>8)freqHistory.shift();
+  const s=[...freqHistory].sort((a,b)=>a-b);
+  return s[Math.floor(s.length/2)];
+}
+
+// ── Signal bars ────────────────────────────────────────────────────
+const BAR_H = [4,7,11,15,18,15,11,7,4];
+function updateSignalBars(level, id) {
+  const bars = document.querySelectorAll('#'+id+' .signal-bar');
+  bars.forEach((bar,i) => {
+    const active = level*9 > i;
+    bar.style.background = active ? 'var(--gold)' : '#2e2a22';
+    bar.style.height = BAR_H[i]+'px';
+  });
+}
+
+// ── Main loop ──────────────────────────────────────────────────────
+function detect() {
+  if(!analyser) return;
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+
+  // Signal level
+  let mx=0; buf.forEach(v=>{if(Math.abs(v)>mx)mx=Math.abs(v);});
+  const sigLevel = Math.min(1, mx*3);
+  updateSignalBars(sigLevel, 'signalBars');
+  updateSignalBars(sigLevel, 'signalBars2');
+
+  const hasSignal = mx > 0.008;
+
+  // ── Envelope sample for beat detection ──────────────────────────
+  const now = audioCtx.currentTime;
+  if(now - lastEnvTime >= 1/ENVELOPE_SR) {
+    envelopeHistory.push(mx);
+    if(envelopeHistory.length > ENVELOPE_SR * 6) envelopeHistory.shift();
+
+    // Push to waveform display (normalized)
+    const envMax = Math.max(...envelopeHistory.slice(-ENVELOPE_SR*2), 0.001);
+    beatWaveform.push(mx / envMax);
+    if(beatWaveform.length > WAVEFORM_LEN) beatWaveform.shift();
+
+    lastEnvTime = now;
+  }
+
+  if(mode === 'pitch') {
+    const freq = autoCorrelate(buf, audioCtx.sampleRate);
+    if(freq > 0) {
+      const sm = smoothFreq(freq);
+      const tgt = midiToFreq(selectedNote.midi);
+      const cents = centsOff(sm, tgt);
+      const midi = Math.round(freqToMidi(sm));
+      const nn = NOTE_NAMES[((midi%12)+12)%12];
+      const oct = Math.floor(midi/12)-1;
+      document.getElementById('noteName').textContent = nn+oct;
+      document.getElementById('detectedHz').textContent = sm.toFixed(2);
+      document.getElementById('targetHz').textContent = tgt.toFixed(2);
+      updateMeter(cents);
+    } else {
+      document.getElementById('noteName').textContent = '—';
+      document.getElementById('detectedHz').textContent = '—';
+      document.getElementById('targetHz').textContent = '—';
+      document.getElementById('centsValue').textContent = '— ¢';
+      document.getElementById('meterNeedle').style.left = '50%';
+      document.getElementById('meterFill').style.display = 'none';
+    }
+
+  } else {
+    // Unison mode
+    const rawBeat = extractBeatRate(envelopeHistory);
+    const beatHz = rawBeat >= 0 ? smoothBeatRate(rawBeat) : -1;
+    updateBeatDisplay(beatHz, hasSignal);
+    drawBeatWaveform(beatHz >= 0 ? beatHz : 0);
+  }
+
+  animFrame = requestAnimationFrame(detect);
+}
+
+// ── Meter ──────────────────────────────────────────────────────────
+function updateMeter(cents) {
+  const needle=document.getElementById('meterNeedle');
+  const fill=document.getElementById('meterFill');
+  const centsEl=document.getElementById('centsValue');
+  const noteEl=document.getElementById('noteName');
+  const cl=Math.max(-50,Math.min(50,cents));
+  const pct=(cl+50)/100*100;
+  needle.style.left=pct+'%';
+  const inTune=Math.abs(cents)<3, sharp=cents>3;
+  fill.style.display='block';
+  if(cents>=0){fill.style.left='50%';fill.style.width=(pct-50)+'%';fill.style.background=sharp?'rgba(192,64,64,0.4)':'rgba(74,155,111,0.3)';}
+  else{fill.style.left=pct+'%';fill.style.width=(50-pct)+'%';fill.style.background='rgba(74,123,181,0.4)';}
+  needle.style.background=inTune?'var(--green)':(sharp?'var(--red)':'var(--blue)');
+  const cls=inTune?'in-tune':(sharp?'sharp':'flat');
+  centsEl.className='cents-value '+cls;
+  centsEl.textContent=(cents>=0?'+':'')+cents.toFixed(1)+' ¢';
+  noteEl.className='note-name '+cls;
+}
+
+function resetMeter() {
+  document.getElementById('meterNeedle').style.left='50%';
+  document.getElementById('meterFill').style.display='none';
+  document.getElementById('centsValue').className='cents-value';
+  document.getElementById('centsValue').textContent='— ¢';
+  document.getElementById('noteName').className='note-name';
+  document.getElementById('noteName').textContent='—';
+  document.getElementById('detectedHz').textContent='—';
+  document.getElementById('targetHz').textContent='—';
+}
+
+// ── Mic ────────────────────────────────────────────────────────────
+async function toggleMic() {
+  if(listening) stopMic(); else await startMic();
+}
+
+async function startMic() {
+  try {
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    micStream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    const src = audioCtx.createMediaStreamSource(micStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 4096;
+    analyser.smoothingTimeConstant = 0.1;
+    src.connect(analyser);
+    listening=true;
+    envelopeHistory=[];
+    beatWaveform=new Array(WAVEFORM_LEN).fill(0);
+    beatRateHistory=[];
+    lastEnvTime=0;
+    if(mode==='unison') initBeatCanvas();
+    document.getElementById('micBtn').classList.add('listening');
+    document.getElementById('micBtnText').textContent='Listening… (tap to stop)';
+    document.getElementById('statusMsg').textContent='Listening — play a unison on the piano.';
+    animFrame=requestAnimationFrame(detect);
+  } catch(e) {
+    document.getElementById('statusMsg').textContent='Mic access denied. Please allow microphone access.';
+  }
+}
+
+function stopMic() {
+  if(animFrame) cancelAnimationFrame(animFrame);
+  if(micStream) micStream.getTracks().forEach(t=>t.stop());
+  if(audioCtx) audioCtx.close();
+  analyser=null;micStream=null;audioCtx=null;
+  listening=false;
+  document.getElementById('micBtn').classList.remove('listening');
+  document.getElementById('micBtnText').textContent='Start Listening';
+  resetMeter();
+  updateSignalBars(0,'signalBars');
+  updateSignalBars(0,'signalBars2');
+  updateBeatDisplay(-1, false);
+  updateStatus();
+}
+
+// ── Keyboard ───────────────────────────────────────────────────────
+function buildKeyboard() {
+  const cont=document.getElementById('keyboardOctaves');
+  cont.innerHTML='';
+  for(let oct=2;oct<=7;oct++){
+    const row=document.createElement('div');
+    row.className='octave-row';
+    const lbl=document.createElement('span');
+    lbl.className='octave-label';
+    lbl.textContent='C'+oct;
+    row.appendChild(lbl);
+    const grid=document.createElement('div');
+    grid.className='key-grid';
+    for(let i=0;i<12;i++){
+      const midi=oct*12+i+12;
+      const name=NOTE_NAMES[i];
+      const btn=document.createElement('button');
+      btn.className='key-btn'+(BLACK_KEYS.has(i)?' black-key':'');
+      btn.textContent=name;
+      btn.dataset.midi=midi;
+      btn.onclick=()=>selectNote(name,oct,midi,btn);
+      grid.appendChild(btn);
+    }
+    row.appendChild(grid);
+    cont.appendChild(row);
+  }
+  // Default A4
+  cont.querySelectorAll('.key-btn').forEach(b=>{
+    if(parseInt(b.dataset.midi)===69){b.classList.add('active');selectNote('A',4,69,b);}
+  });
+}
+
+function selectNote(name,oct,midi,btn) {
+  selectedNote={name,octave:oct,midi};
+  document.querySelectorAll('.key-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  const freq=midiToFreq(midi);
+  document.getElementById('listeningFor').textContent=`${name}${oct}  —  ${freq.toFixed(2)} Hz`;
+  document.getElementById('refFreqDisplay').textContent=`${freq.toFixed(2)} Hz`;
+  document.getElementById('beatNote').textContent=name+oct;
+  envelopeHistory=[];beatRateHistory=[];
+  updateStatus();
+  if(refPlaying)restartRefTone();
+}
+
+function updateStatus() {
+  const {name,octave}=selectedNote;
+  document.getElementById('statusMsg').textContent=
+    `Target: ${name}${octave} · A${refA} · ${temperament==='well'?'Well':'Equal'} temperament`;
+}
+
+// ── Ref tone ───────────────────────────────────────────────────────
+function toggleRefTone(){if(refPlaying)stopRefTone();else startRefTone();}
+
+function startRefTone(){
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  const freq=midiToFreq(selectedNote.midi);
+  refOscillator=audioCtx.createOscillator();
+  refGain=audioCtx.createGain();
+  refOscillator.type='sine';
+  refOscillator.frequency.value=freq;
+  refGain.gain.setValueAtTime(0,audioCtx.currentTime);
+  refGain.gain.linearRampToValueAtTime(0.18,audioCtx.currentTime+0.05);
+  refOscillator.connect(refGain);
+  refGain.connect(audioCtx.destination);
+  refOscillator.start();
+  refPlaying=true;
+  document.getElementById('refPlayBtn').classList.add('playing');
+  document.getElementById('refPlayBtn').textContent='■ Stop Tone';
+  document.getElementById('refFreqDisplay').textContent=`${midiToFreq(selectedNote.midi).toFixed(2)} Hz · ${selectedNote.name}${selectedNote.octave}`;
+}
+
+function stopRefTone(){
+  if(refOscillator){
+    refGain.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.05);
+    refOscillator.stop(audioCtx.currentTime+0.1);
+    refOscillator=null;refGain=null;
+  }
+  refPlaying=false;
+  document.getElementById('refPlayBtn').classList.remove('playing');
+  document.getElementById('refPlayBtn').textContent='▶ Play Reference Tone';
+}
+
+function restartRefTone(){stopRefTone();setTimeout(startRefTone,120);}
+
+// ── Settings ───────────────────────────────────────────────────────
+function setRef(btn){
+  document.querySelectorAll('[data-ref]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  refA=parseInt(btn.dataset.ref);
+  freqHistory=[];
+  const{name,octave,midi}=selectedNote;selectNote(name,octave,midi,null);
+}
+function setTemp(btn){
+  document.querySelectorAll('[data-temp]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  temperament=btn.dataset.temp;
+  freqHistory=[];
+  const{name,octave,midi}=selectedNote;selectNote(name,octave,midi,null);
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+buildKeyboard();
+updateStatus();
+updateSignalBars(0,'signalBars');
+updateSignalBars(0,'signalBars2');
+beatWaveform=new Array(WAVEFORM_LEN).fill(0);
+</script>
+</body>
+</html>
